@@ -1,253 +1,104 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 # # BHARAT INTERN
 # 
 # # NAME-SHAIK TABASSUM SHABANA
 # 
-# # TASK1-STOCK PREDICTION
-#  - IN THIS WE WILL USE THE NSE TATA GLOBAL BEVERAGES DATASET FOR STOCK PREDICTION
+# # TASK1-STOCK PREDICTION 
+# In this we will use the Nestle India -Historical Stock Price Dataset for STOCK PREDICTION
 
-# # IMPORT LIBRARIES
-
-# In[1]:
-
-
-from sklearn.linear_model import LogisticRegression 
+# # Importing Libraries
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense 
 
+# # Loading data from a CSV file
 
-# In[8]:
-
-
-#Load data from a CSV file
-df = pd.read_csv(r"C:\Users\smily\Downloads\nse.csv")
+df=pd.read_csv(r"C:\Users\dell\Downloads\nestle.csv")
 df.head()
+df.tail()
 
-
-# # SHAPE OF DATA
-
-# In[9]:
-
-
+# # SHAPE OF THE DATA
 df.shape
 
-
-# # GATHERING INFORMATION ABOUT THE DATA
-
-# In[10]:
-
-
+# # Gathering information about data
 df.info()
-
-
-# In[11]:
-
-
 df.describe()
-
-
-# In[12]:
-
-
 df.dtypes
 
 
-# In[13]:
+# # cleaning the data
+df['Date'] = pd.to_datetime(df['Date'])
+df = df.sort_values(by='Date', ascending=True)
+df = df[['Date', 'Close Price']]
 
+df.columns
+df.head()
+df.tail()
 
-df=df.reset_index()['Close']
-df
 
+# # Normalize the Close prices
+scaler = MinMaxScaler()
+df['Close Price'] = scaler.fit_transform(df['Close Price'].values.reshape(-1, 1))
 
-# In[15]:
 
+# # split the data into train and test sets
+train_size = int(len(df) * 0.8)
+train_data = df.iloc[:train_size]
+test_data = df.iloc[train_size:]
+print(train_data)
+print(test_data)
 
-df.isnull().sum()
 
+# # create sequences and labels for training and testing
+# Function to create sequences and labels
+def create_sequences(df, seq_length):
+    sequences, labels = [], []
+    for i in range(len(df) - seq_length):
+        seq = df['Close Price'].values[i:i+seq_length]
+        label = df['Close Price'].values[i+seq_length]
+        sequences.append(seq)
+        labels.append(label)
+    return np.array(sequences), np.array(labels)
 
-# In[16]:
+# Define sequence length
+seq_length = 10 
+X_train, y_train = create_sequences(train_data, seq_length)
+X_test, y_test = create_sequences(test_data, seq_length)
+print(X_train,y_train,X_test,y_test)
 
 
-df
+# # Reshape the data for LSTM
+X_train = X_train.reshape(X_train.shape[0], seq_length, 1)
+X_test = X_test.reshape(X_test.shape[0], seq_length, 1)
+print(X_train.shape)
+print(X_test.shape)
 
 
-# # PREPROCESSING
+# # Build and train the LSTM model
+model = Sequential()
+model.add(LSTM(50, input_shape=(seq_length, 1)))
+model.add(Dense(1))
+model.compile(optimizer='adam', loss='mean_squared_error')
+model.fit(X_train, y_train, epochs=50, batch_size=32)
 
-# In[17]:
 
+# # Make predictions
+y_pred = model.predict(X_test)
+y_pred = scaler.inverse_transform(y_pred)
+y_test = scaler.inverse_transform(y_test.reshape(-1, 1))
 
-from sklearn.preprocessing import MinMaxScaler
-scaler=MinMaxScaler(feature_range=(0,1))
-df=scaler.fit_transform(np.array(df).reshape(-1,1))
 
+# # Calculating RMSE
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print(f"Root Mean Squared Error: {rmse}")
 
-# In[18]:
 
-
-print(df)
-
-
-# # DEFINING TIME STEP AND CREATING TRAINING AND TEST DATASETS ACCORDING TO THE TIMESTAMP
-
-# In[19]:
-
-
-training_size=int(len(df)*0.75)
-test_size=int(len(df))-training_size
-train_data, test_data = df[0:training_size,:],df[training_size:len(df),:1]
-
-
-# In[20]:
-
-
-training_size,test_size
-
-
-# In[21]:
-
-
-train_data,test_data
-
-
-# # CONVERT AN ARRAY VALUES INTO A DATASET
-
-# In[23]:
-
-
-def create_feartures(dataset,time_steps=1):
-    dataX, dataY =[], []
-    for i in range(len(dataset)-time_steps-1):
-        a=dataset[i:(i+time_steps),0]
-        dataX.append(a)
-        dataY.append(dataset[i+time_steps, 0])
-    return np.array(dataX), np.array(dataY)
-
-
-# # RESHAPE INTO X=t,t+2,t+3 and t+4 
-
-# In[25]:
-
-
-ts=100
-x_train, y_train=create_feartures(train_data, ts)
-x_test, y_test = create_feartures(test_data,ts)
-
-
-# In[26]:
-
-
-print(x_train.shape), print(y_train.shape)
-
-
-# # TRAIN A LINEAR LIGRESSION MODEL 
-
-# In[36]:
-
-
-model = LinearRegression()
-model.fit(x_train, y_train)
-
-
-# # MAKE PREDICTIONS
-
-# In[38]:
-
-
-y_pred = model.predict(x_test)
-
-
-# # CALCULATING RMSE
-
-# In[39]:
-
-
-from sklearn.metrics import mean_squared_error, r2_score
-
-mse = mean_squared_error(y_test, y_pred)
-rmse = np.sqrt(mse)
-r2 = r2_score(y_test, y_pred)
-
-print(f'Mean Squared Error: {mse}')
-print(f'Root Mean Squared Error: {rmse}')
-print(f'R-squared: {r2}')
-
-
-# # PLOT THE ACTUAL VS PREDICTED VALUES FOR TRAINING DATA
-
-# In[44]:
-
-
-import matplotlib.pyplot as plt
-y_train_pred = model.predict(x_train)
-y_test_pred = model.predict(x_test)
+# # Plot the true vs predicted prices
 plt.figure(figsize=(12, 6))
-plt.subplot(1, 2, 1)
-plt.scatter(y_train, y_train_pred)
-plt.xlabel("Actual Values")
-plt.ylabel("Predicted Values")
-plt.title("Actual vs. Predicted (Training)")
-plt.subplot(1, 2, 2)
-plt.scatter(y_test, y_test_pred)
-plt.xlabel("Actual Values")
-plt.ylabel("Predicted Values")
-plt.title("Actual vs. Predicted (Testing)")
-plt.tight_layout()
+plt.plot(y_test, label='True Price', color='green')
+plt.plot(y_pred, label='Predicted Price', color='red')
+plt.legend()
 plt.show()
-
-
-# In[45]:
-
-
-len(test_data)
-
-
-# In[46]:
-
-
-x_input=test_data[209:].reshape(1,-1)
-x_input.shape
-
-
-# # PREDICTING THE VALUES FOR NEXT 100 DAYS
-
-# In[47]:
-
-
-temp_input=list(x_input)
-temp_input=temp_input[0].tolist()
-temp_input
-
-
-# In[57]:
-
-
-day_new=np.imag(1)
-day_pred=np.imag(101)
-
-
-# In[58]:
-
-
-len(df)
-
-
-# # THIS IS THE GRAPH OF ACTUAL VALUES IN LAST 100 DAYS
-
-# In[60]:
-
-
-df1=df.tolist()
-df1=scaler.inverse_transform(df1).tolist()
-plt.plot(df1)
-plt.plot(df)
-
-
-# In[ ]:
-
-
-
-
